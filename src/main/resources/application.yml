@@ -1,0 +1,15 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: notificaciones-service
+  cloud:
+    azure:
+      servicebus:
+        connection-string: ${SERVICEBUS_CONNECTION_STRING}
+
+app:
+  servicebus:
+    topic: pedidos-topic
+    subscription: notificaciones-sub
