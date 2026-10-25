@@ -59,4 +59,24 @@ class KafkaEventConsumerTest {
         verify(notificacionService).alertarStock(any(AlertaStockEvent.class));
         verify(ack).acknowledge();
     }
+
+    @Test
+    void pedidoSinTrackingSeDescartaSinProcesarNiConfirmar() {
+        String json = "{\"id\":1,\"cliente\":\"Ana\",\"destino\":\"Santiago\",\"total\":1000.0}";
+        ConsumerRecord<String, String> registro = new ConsumerRecord<>("pedidos-creados", 0, 7L, "K", json);
+
+        assertThrows(IllegalArgumentException.class, () -> consumer.pedidoCreado(registro, ack));
+
+        verify(notificacionService, never()).enviar(any());
+        verify(ack, never()).acknowledge();
+    }
+
+    @Test
+    void mensajeVacioSeDescarta() {
+        ConsumerRecord<String, String> registro = new ConsumerRecord<>("alertas-stock", 0, 1L, "K", "  ");
+
+        assertThrows(IllegalArgumentException.class, () -> consumer.alertaStock(registro, ack));
+
+        verify(notificacionService, never()).alertarStock(any());
+    }
 }
