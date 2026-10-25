@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: notificaciones-service
+  autoconfigure:
+    exclude:
+      # Kafka propio: se desactiva la integracion de Azure con Event Hubs (no se usa y busca clases que no existen)
+      - com.azure.spring.cloud.autoconfigure.implementation.kafka.AzureEventHubsKafkaOAuth2AutoConfiguration
+      - com.azure.spring.cloud.autoconfigure.implementation.kafka.AzureEventHubsKafkaAutoConfiguration
   cloud:
     azure:
       servicebus:
