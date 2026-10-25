@@ -13,3 +13,12 @@ app:
   servicebus:
     topic: pedidos-topic
     subscription: notificaciones-sub
+  kafka:
+    enabled: ${KAFKA_ENABLED:false}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+    topic:
+      pedidos-creados: pedidos-creados
+      alertas-stock: alertas-stock
+    group:
+      notificaciones: ${KAFKA_GROUP_NOTIFICACIONES:notificaciones-group}
+      alertas: ${KAFKA_GROUP_ALERTAS:alertas-stock-group}
