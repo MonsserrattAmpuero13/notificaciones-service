@@ -27,25 +27,42 @@ Los consumidores están en `consumer/KafkaEventConsumer` y usan `@KafkaListener`
 | `pedidos-creados` | `notificaciones-group` | Genera la notificación del pedido |
 | `alertas-stock` | `alertas-stock-group` | Registra la alerta de stock bajo el mínimo |
 
-- **Configuración:** `config/KafkaConsumerConfig` (brokers, deserializers, confirmación manual del offset, lectura desde el inicio para un grupo nuevo).
+- **Configuración:** `config/KafkaConsumerConfig` (brokers, deserializers, confirmación manual del offset, lectura desde el inicio para un grupo nuevo, lotes de 50 mensajes, timeouts de sesión y latido, asignación cooperativa de particiones y concurrencia configurable).
 - **Balanceo:** si se levantan dos copias del servicio con el mismo grupo, Kafka reparte las 3 particiones entre ellas. Si una se cae, las particiones pasan a la que sigue viva.
 - **Validación del mensaje:** se descarta (con log del tópico, partición y offset) si está vacío, si no es JSON válido o si faltan datos obligatorios (`tracking`, `cliente` o `sku`).
 - **Reintentos:** error temporal → 3 reintentos con 1 segundo de espera, cada uno registrado en el log. Mensaje inválido → no se reintenta.
 - **Mensajes fallidos:** se envían al tópico `<tópico>.DLT` (misma partición) y el offset avanza, para que un mensaje defectuoso no bloquee el resto.
 
-Crear los tópicos DLT antes de probar (con `kafka-admin-service` en el puerto 8083):
-
-```
-curl -X POST http://localhost:8083/api/kafka/topics -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"name":"pedidos-creados.DLT","partitions":3,"replicationFactor":3}'
-curl -X POST http://localhost:8083/api/kafka/topics -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"name":"alertas-stock.DLT","partitions":3,"replicationFactor":3}'
-```
+Los tópicos (incluidos los `.DLT`) se crean con `kafka/crear-topicos.sh` del repositorio [pedidos360-app](https://github.com/MonsserrattAmpuero13/pedidos360-app). Hay que ejecutarlo antes de probar: el clúster no crea tópicos automáticamente y, sin los `.DLT`, un mensaje fallido no tendría a dónde ir.
 
 | Variable | Uso |
 |---|---|
 | `KAFKA_ENABLED` | `true` para activar los consumidores de Kafka (por defecto `false`) |
 | `KAFKA_BOOTSTRAP_SERVERS` | Brokers (por defecto `localhost:9092,localhost:9093,localhost:9094`) |
+| `KAFKA_CONCURRENCY` | Hilos consumidores por listener (por defecto `3`, uno por partición) |
+
+### Demostrar el reparto entre consumidores (consumer group)
+
+Para ver cómo dos copias del servicio se reparten las particiones, se levanta cada una con un solo hilo:
+
+```
+# Terminal 1
+KAFKA_ENABLED=true KAFKA_CONCURRENCY=1 ./mvnw spring-boot:run
+
+# Terminal 2 (otro puerto)
+KAFKA_ENABLED=true KAFKA_CONCURRENCY=1 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8084
+```
+
+Con `kafka-admin-service` se consulta quién tiene cada partición:
+
+```
+curl http://localhost:8083/api/kafka/consumer-groups/notificaciones-group -H "Authorization: Bearer $TOKEN"
+```
+
+- Con una sola copia, esa copia tiene las 3 particiones de `pedidos-creados`.
+- Al levantar la segunda, el grupo se reparte (2 + 1).
+- Si se detiene una, la otra recupera las 3 particiones y no se pierde ningún mensaje (el offset confirmado queda guardado en Kafka).
+- El mismo reparto se ve en Kafka UI, en *Consumers → notificaciones-group*.
 
 Para probar un mensaje defectuoso, publicar desde Kafka UI (http://localhost:8090) en `pedidos-creados` un texto que no sea JSON: aparece el error en el log y el mensaje llega a `pedidos-creados.DLT`.
 

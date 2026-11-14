@@ -21,6 +21,7 @@ app:
   kafka:
     enabled: ${KAFKA_ENABLED:false}
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+    concurrency: ${KAFKA_CONCURRENCY:3}
     topic:
       pedidos-creados: pedidos-creados
       alertas-stock: alertas-stock

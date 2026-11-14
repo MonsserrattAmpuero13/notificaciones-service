@@ -1,6 +1,7 @@
 package cl.duoc.pedidos360.notificaciones_service.config;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.CooperativeStickyAssignor;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -38,6 +39,10 @@ public class KafkaConsumerConfig {
     @Value("${app.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    /** Hilos consumidores por @KafkaListener. Con 3 particiones, 3 hilos leen una partición cada uno. */
+    @Value("${app.kafka.concurrency:3}")
+    private int concurrencia;
+
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
@@ -48,6 +53,16 @@ public class KafkaConsumerConfig {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         // Un grupo nuevo lee desde el principio del topico
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // Lotes pequeños: si un mensaje demora, no se supera max.poll.interval.ms y no se dispara un rebalanceo
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50);
+        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000);
+        // Si un consumidor deja de enviar latidos, el grupo lo da por caído y reparte sus particiones
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 15000);
+        props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 5000);
+        // En un rebalanceo solo se mueven las particiones necesarias, sin detener a todo el grupo
+        props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, CooperativeStickyAssignor.class.getName());
+        // Solo se leen mensajes confirmados por el broker
+        props.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
@@ -71,6 +86,8 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        // Varios hilos por listener: reparten las particiones del tópico dentro de la misma instancia
+        factory.setConcurrency(concurrencia);
 
         // Error temporal: 3 reintentos, 1 segundo entre cada uno. Mensaje invalido: no se reintenta.
         // Si no se puede procesar, el mensaje se envia al topico "<topico>.DLT" (misma particion) y se
