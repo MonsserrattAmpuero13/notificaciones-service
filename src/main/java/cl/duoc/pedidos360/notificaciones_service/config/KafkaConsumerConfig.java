@@ -43,6 +43,29 @@ public class KafkaConsumerConfig {
     @Value("${app.kafka.concurrency:3}")
     private int concurrencia;
 
+    /** read_committed en Docker; en Event Hubs (sin transacciones) se puede cambiar a read_uncommitted. */
+    @Value("${app.kafka.isolation-level:read_committed}")
+    private String isolationLevel;
+
+    @Value("${app.kafka.assignor:org.apache.kafka.clients.consumer.CooperativeStickyAssignor}")
+    private String assignor;
+
+    /** Conexion segura opcional (p. ej. Azure Event Hubs: SASL_SSL + PLAIN). Si estan vacias, se conecta sin seguridad como en Docker. */
+    @Value("${app.kafka.security-protocol:}")
+    private String securityProtocol;
+
+    @Value("${app.kafka.sasl-mechanism:}")
+    private String saslMechanism;
+
+    @Value("${app.kafka.sasl-jaas-config:}")
+    private String saslJaasConfig;
+
+    private void aplicarSeguridad(Map<String, Object> props) {
+        if (!securityProtocol.isBlank()) props.put("security.protocol", securityProtocol);
+        if (!saslMechanism.isBlank()) props.put("sasl.mechanism", saslMechanism);
+        if (!saslJaasConfig.isBlank()) props.put("sasl.jaas.config", saslJaasConfig);
+    }
+
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
@@ -60,9 +83,10 @@ public class KafkaConsumerConfig {
         props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 15000);
         props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 5000);
         // En un rebalanceo solo se mueven las particiones necesarias, sin detener a todo el grupo
-        props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, CooperativeStickyAssignor.class.getName());
+        props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, assignor);
         // Solo se leen mensajes confirmados por el broker
-        props.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
+        props.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, isolationLevel);
+        aplicarSeguridad(props);
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
@@ -75,6 +99,7 @@ public class KafkaConsumerConfig {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.ACKS_CONFIG, "all");
         props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 5000);
+        aplicarSeguridad(props);
         ProducerFactory<String, String> fabrica = new DefaultKafkaProducerFactory<>(props);
         return new KafkaTemplate<>(fabrica);
     }

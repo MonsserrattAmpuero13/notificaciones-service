@@ -22,6 +22,12 @@ app:
     enabled: ${KAFKA_ENABLED:false}
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
     concurrency: ${KAFKA_CONCURRENCY:3}
+    # Conexion segura opcional (Azure Event Hubs): dejar vacias para Kafka local sin seguridad
+    security-protocol: ${KAFKA_SECURITY_PROTOCOL:}
+    sasl-mechanism: ${KAFKA_SASL_MECHANISM:}
+    sasl-jaas-config: ${KAFKA_SASL_JAAS_CONFIG:}
+    isolation-level: ${KAFKA_ISOLATION_LEVEL:read_committed}
+    assignor: ${KAFKA_ASSIGNOR:org.apache.kafka.clients.consumer.CooperativeStickyAssignor}
     topic:
       pedidos-creados: pedidos-creados
       alertas-stock: alertas-stock
